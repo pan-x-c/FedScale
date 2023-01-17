@@ -4,6 +4,7 @@ import csv
 import os
 import os.path
 import warnings
+import numpy as np
 
 from PIL import Image
 
@@ -76,8 +77,11 @@ class FEMNIST():
         img = Image.open(os.path.join(self.root, imgName))
 
         # avoid channel error
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
+        # if img.mode != 'RGB':
+        #     img = img.convert('RGB')
+        img = np.asarray(img)
+        img = np.resize(img.astype(np.uint8), (28, 28))
+        img = Image.fromarray(img, mode='L')
 
         if self.transform is not None:
             img = self.transform(img)

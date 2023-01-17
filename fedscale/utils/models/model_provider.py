@@ -145,6 +145,7 @@ from fedscale.utils.models.cv_models.xception import *
 from fedscale.utils.models.cv_models.xdensenet import *
 from fedscale.utils.models.cv_models.xdensenet_cifar import *
 from fedscale.utils.models.cv_models.zfnet import *
+from fedscale.utils.models.cv_models.convnet import *
 
 # from fedscale.utils.models.cv_models.others.oth_quartznet import *
 
@@ -185,6 +186,8 @@ _models = {
     'bn_vgg19b': bn_vgg19b,
 
     'bninception': bninception,
+
+    'convnet2': convnet2,
 
     'resnet10': resnet10,
     'resnet12': resnet12,
