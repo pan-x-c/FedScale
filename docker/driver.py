@@ -128,8 +128,9 @@ def process_cmd(yaml_file, local=False):
         if local:
             subprocess.Popen(f'{ps_cmd}', shell=True, stdout=fout, stderr=fout)
         else:
-            subprocess.Popen(f'ssh {submit_user}{ps_ip} "{setup_cmd} {ps_cmd}"',
-                             shell=True, stdout=fout, stderr=fout)
+            # subprocess.Popen(f'ssh {submit_user}{ps_ip} "{setup_cmd} {ps_cmd}"',
+            #                  shell=True, stdout=fout, stderr=fout)
+            print(f"{setup_cmd} {ps_cmd}")
 
     time.sleep(10)
     # =========== Submit job to each worker ============
@@ -164,8 +165,9 @@ def process_cmd(yaml_file, local=False):
                         subprocess.Popen(f'{worker_cmd}',
                                          shell=True, stdout=fout, stderr=fout)
                     else:
-                        subprocess.Popen(f'ssh {submit_user}{worker} "{setup_cmd} {worker_cmd}"',
-                                         shell=True, stdout=fout, stderr=fout)
+                        # subprocess.Popen(f'ssh {submit_user}{worker} "{setup_cmd} {worker_cmd}"',
+                        #                  shell=True, stdout=fout, stderr=fout)
+                        print(f"{setup_cmd} {worker_cmd}")
 
     # dump the address of running workers
     current_path = os.path.dirname(os.path.abspath(__file__))

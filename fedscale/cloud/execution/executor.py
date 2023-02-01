@@ -326,11 +326,11 @@ class Executor(object):
             train_res = client.train(
                 client_data=client_data, model=client_model, conf=conf)
         else:
-            client_data = select_dataset(clientId, self.training_sets,
-                                         batch_size=conf.batch_size, args=self.args,
-                                         collate_fn=self.collate_fn
-                                         )
-
+            # client_data = select_dataset(clientId, self.training_sets,
+            #                              batch_size=conf.batch_size, args=self.args,
+            #                              collate_fn=self.collate_fn
+            #                              )
+            client_data = None
             client = self.get_client_trainer(conf)
             train_res = client.train(
                 client_data=client_data, model=client_model, conf=conf)

@@ -125,7 +125,8 @@ class DataPartitioner(object):
 
     def getSize(self):
         # return the size of samples
-        return {'size': [len(partition) for partition in self.partitions]}
+        # return {'size': [len(partition) for partition in self.partitions]}
+        return {'size': [100 for i in range(10000)]}
 
 
 def select_dataset(rank, partition, batch_size, args, isTest=False, collate_fn=None):

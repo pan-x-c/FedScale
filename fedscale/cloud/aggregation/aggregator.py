@@ -83,6 +83,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
         self.collate_fn = None
         self.task = args.task
         self.round = 0
+        self.timestamp = 0
 
         self.start_run_time = time.time()
         self.client_conf = {}
@@ -511,6 +512,8 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
         """Triggered upon the round completion, it registers the last round execution info,
         broadcast new tasks for executors and select clients for next round.
         """
+        if self.round == 0:
+            self.time_stamp = time.time()
         self.global_virtual_clock += self.round_duration
         self.round += 1
 
@@ -569,6 +572,9 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
         self.update_default_task_config()
 
         if self.round >= self.args.rounds:
+            logging.info("======================result======================")
+            logging.info(f"Total Running time {time.time() - self.start_run_time} s, train time {time.time() - self.time_stamp}")
+            logging.info("======================result======================")
             self.broadcast_aggregator_events(commons.SHUT_DOWN)
         elif self.round % self.args.eval_interval == 0:
             self.broadcast_aggregator_events(commons.UPDATE_MODEL)

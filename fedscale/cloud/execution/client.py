@@ -12,6 +12,7 @@ class Client(object):
     """Basic client component in Federated Learning"""
 
     def __init__(self, conf):
+        self.model_path = f"/root/fedscale-test/FedScale/models/model{conf.clientId}"
         self.optimizer = ClientOptimizer()
         self.init_task(conf)
     
@@ -31,30 +32,31 @@ class Client(object):
         clientId = conf.clientId
         logging.info(f"Start to train (CLIENT: {clientId}) ...")
         tokenizer, device = conf.tokenizer, conf.device
+        torch.save(model, self.model_path)
+        model = torch.load(self.model_path)
+        # model = model.to(device=device)
+        # model.train()
 
-        model = model.to(device=device)
-        model.train()
+        # trained_unique_samples = min(
+        #     len(client_data.dataset), conf.local_steps * conf.batch_size)
+        # self.global_model = None
 
-        trained_unique_samples = min(
-            len(client_data.dataset), conf.local_steps * conf.batch_size)
-        self.global_model = None
+        # if conf.gradient_policy == 'fed-prox':
+        #     # could be move to optimizer
+        #     self.global_model = [param.data.clone() for param in model.parameters()]
 
-        if conf.gradient_policy == 'fed-prox':
-            # could be move to optimizer
-            self.global_model = [param.data.clone() for param in model.parameters()]
-
-        optimizer = self.get_optimizer(model, conf)
-        criterion = self.get_criterion(conf)
+        # optimizer = self.get_optimizer(model, conf)
+        # criterion = self.get_criterion(conf)
         error_type = None
 
         # NOTE: If one may hope to run fixed number of epochs, instead of iterations, 
         # use `while self.completed_steps < conf.local_steps * len(client_data)` instead
-        while self.completed_steps < conf.local_steps:
-            try:
-                self.train_step(client_data, conf, model, optimizer, criterion)
-            except Exception as ex:
-                error_type = ex
-                break
+        # while self.completed_steps < conf.local_steps:
+        #     try:
+        #         self.train_step(client_data, conf, model, optimizer, criterion)
+        #     except Exception as ex:
+        #         error_type = ex
+        #         break
 
         state_dicts = model.state_dict()
         model_param = {p: state_dicts[p].data.cpu().numpy()
@@ -69,7 +71,7 @@ class Client(object):
             logging.info(f"Training of (CLIENT: {clientId}) failed as {error_type}")
 
         results['utility'] = math.sqrt(
-            self.loss_squre)*float(trained_unique_samples)
+            self.loss_squre)*10.0
         results['update_weight'] = model_param
         results['wall_duration'] = 0
 
