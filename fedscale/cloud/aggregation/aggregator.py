@@ -15,6 +15,7 @@ from fedscale.cloud import commons
 from fedscale.cloud.channels import job_api_pb2
 from fedscale.cloud.resource_manager import ResourceManager
 from fedscale.cloud.fllibs import *
+import numpy as np
 
 MAX_MESSAGE_LENGTH = 1*1024*1024*1024  # 1GB
 
@@ -101,6 +102,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
 
         # ======== Task specific ============
         self.init_task_context()
+        self.record = []
 
     def setup_env(self):
         """Set up experiments environment and server optimizer
@@ -514,6 +516,9 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
         """
         if self.round == 0:
             self.time_stamp = time.time()
+        else:
+            self.record.append(time.time() - self.time_stamp)
+            self.time_stamp = time.time()
         self.global_virtual_clock += self.round_duration
         self.round += 1
 
@@ -573,7 +578,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
 
         if self.round >= self.args.rounds:
             logging.info("======================result======================")
-            logging.info(f"Total Running time {time.time() - self.start_run_time} s, train time {time.time() - self.time_stamp}")
+            logging.info(f"Total Running time {time.time() - self.start_run_time} s, train time {self.record}, avg time {np.average(self.record)}")
             logging.info("======================result======================")
             self.broadcast_aggregator_events(commons.SHUT_DOWN)
         elif self.round % self.args.eval_interval == 0:
@@ -833,7 +838,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
         response = job_api_pb2.ServerResponse(event=current_event,
                                           meta=response_msg, data=response_data)
         if current_event != commons.DUMMY_EVENT:
-            logging.info(f"Issue EVENT ({current_event}) to EXECUTOR ({executor_id})")
+            logging.info(f"Issue EVENT ({current_event}) to EXECUTOR ({executor_id}) CLIENT ({client_id})")
 
         return response
 

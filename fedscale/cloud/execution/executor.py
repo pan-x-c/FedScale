@@ -35,6 +35,11 @@ class Executor(object):
         # ======== env information ========
         self.this_rank = args.this_rank
         self.executor_id = str(self.this_rank)
+        # this executor simulates local_client_num clients
+        self.local_client_num = args.local_client_num
+        self.client_id_begin = (self.this_rank - 1) * self.local_client_num + 1
+        self.client_id_end = self.this_rank * self.local_client_num + 1
+        logging.info(f"client_id_begin {self.client_id_begin}, client_id_end {self.client_id_end}")
 
         # ======== model and data ========
         self.training_sets = self.test_dataset = None
@@ -132,6 +137,7 @@ class Executor(object):
         elif self.task == 'voice':
             self.collate_fn = voice_collate_fn
 
+        self.total_client_num = len(training_sets.getSize()['size'])
         return training_sets, testing_sets
 
     def run(self):
@@ -207,7 +213,7 @@ class Executor(object):
         # Report execution completion meta information
         response = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION(
             job_api_pb2.CompleteRequest(
-                client_id=str(client_id), executor_id=self.executor_id,
+                client_id=str(client_id), executor_id=str(client_id),
                 event=commons.CLIENT_TRAIN, status=True, msg=None,
                 meta_result=None, data_result=None
             )
@@ -227,14 +233,15 @@ class Executor(object):
         test_res = {'executorId': self.this_rank, 'results': test_res}
 
         # Report execution completion information
-        response = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION(
-            job_api_pb2.CompleteRequest(
-                client_id=self.executor_id, executor_id=self.executor_id,
-                event=commons.MODEL_TEST, status=True, msg=None,
-                meta_result=None, data_result=self.serialize_response(test_res)
+        for client_id in range(self.client_id_begin, self.client_id_end):
+            response = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION(
+                job_api_pb2.CompleteRequest(
+                    client_id=str(client_id), executor_id=str(client_id),
+                    event=commons.MODEL_TEST, status=True, msg=None,
+                    meta_result=None, data_result=self.serialize_response(test_res)
+                )
             )
-        )
-        self.dispatch_worker_events(response)
+            self.dispatch_worker_events(response)
 
     def Stop(self):
         """Stop the current executor
@@ -350,30 +357,32 @@ class Executor(object):
         evalStart = time.time()
         device = self.device
         model = self.load_global_model()
-        if self.task == 'rl':
-            client = RLClient(args)
-            test_res = client.test(args, self.this_rank, model, device=device)
-            _, _, _, testResults = test_res
-        else:
-            data_loader = select_dataset(self.this_rank, self.testing_sets,
-                                         batch_size=args.test_bsz, args=args,
-                                         isTest=True, collate_fn=self.collate_fn
-                                         )
+        testResults = {'top_1': 0.0, 'top_5': 0.0,
+        'test_loss': 0.0, 'test_len': 1}
+        # if self.task == 'rl':
+        #     client = RLClient(args)
+        #     test_res = client.test(args, self.this_rank, model, device=device)
+        #     _, _, _, testResults = test_res
+        # else:
+        #     data_loader = select_dataset(self.this_rank, self.testing_sets,
+        #                                  batch_size=args.test_bsz, args=args,
+        #                                  isTest=True, collate_fn=self.collate_fn
+        #                                  )
 
-            if self.task == 'voice':
-                criterion = CTCLoss(reduction='mean').to(device=device)
-            else:
-                criterion = torch.nn.CrossEntropyLoss().to(device=device)
+        #     if self.task == 'voice':
+        #         criterion = CTCLoss(reduction='mean').to(device=device)
+        #     else:
+        #         criterion = torch.nn.CrossEntropyLoss().to(device=device)
 
-            if self.args.engine == commons.PYTORCH:
-                test_res = test_model(self.this_rank, model, data_loader,
-                                      device=device, criterion=criterion, tokenizer=tokenizer)
-            else:
-                raise Exception(f"Need customized implementation for model testing in {self.args.engine} engine")
+        #     if self.args.engine == commons.PYTORCH:
+        #         test_res = test_model(self.this_rank, model, data_loader,
+        #                               device=device, criterion=criterion, tokenizer=tokenizer)
+        #     else:
+        #         raise Exception(f"Need customized implementation for model testing in {self.args.engine} engine")
 
-            test_loss, acc, acc_5, testResults = test_res
-            logging.info("After aggregation round {}, CumulTime {}, eval_time {}, test_loss {}, test_accuracy {:.2f}%, test_5_accuracy {:.2f}% \n"
-                         .format(self.round, round(time.time() - self.start_run_time, 4), round(time.time() - evalStart, 4), test_loss, acc*100., acc_5*100.))
+        #     test_loss, acc, acc_5, testResults = test_res
+        #     logging.info("After aggregation round {}, CumulTime {}, eval_time {}, test_loss {}, test_accuracy {:.2f}%, test_5_accuracy {:.2f}% \n"
+        #                  .format(self.round, round(time.time() - self.start_run_time, 4), round(time.time() - evalStart, 4), test_loss, acc*100., acc_5*100.))
 
         gc.collect()
 
@@ -385,15 +394,16 @@ class Executor(object):
         start_time = time.time()
         while time.time() - start_time < 180:
             try:
-                response = self.aggregator_communicator.stub.CLIENT_REGISTER(
-                    job_api_pb2.RegisterRequest(
-                        client_id=self.executor_id,
-                        executor_id=self.executor_id,
-                        executor_info=self.serialize_response(
-                            self.report_executor_info_handler())
+                for client_id in range(self.client_id_begin, self.client_id_end):
+                    response = self.aggregator_communicator.stub.CLIENT_REGISTER(
+                        job_api_pb2.RegisterRequest(
+                            client_id=str(client_id),
+                            executor_id=str(client_id),
+                            executor_info=self.serialize_response(
+                                self.report_executor_info_handler())
+                        )
                     )
-                )
-                self.dispatch_worker_events(response)
+                    self.dispatch_worker_events(response)
                 break
             except Exception as e:
                 logging.warning(f"Failed to connect to aggregator {e}. Will retry in 5 sec.")
@@ -402,11 +412,12 @@ class Executor(object):
     def client_ping(self):
         """Ping the aggregator for new task
         """
-        response = self.aggregator_communicator.stub.CLIENT_PING(job_api_pb2.PingRequest(
-            client_id=self.executor_id,
-            executor_id=self.executor_id
-        ))
-        self.dispatch_worker_events(response)
+        for client_id in range(self.client_id_begin, self.client_id_end):
+            response = self.aggregator_communicator.stub.CLIENT_PING(job_api_pb2.PingRequest(
+                client_id=str(client_id),
+                executor_id=str(client_id)
+            ))
+            self.dispatch_worker_events(response)
 
     def event_monitor(self):
         """Activate event handler once receiving new message
@@ -428,7 +439,7 @@ class Executor(object):
 
                     # Upload model updates
                     future_call = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION.future(
-                        job_api_pb2.CompleteRequest(client_id=str(client_id), executor_id=self.executor_id,
+                        job_api_pb2.CompleteRequest(client_id=str(client_id), executor_id=str(client_id),
                                                     event=commons.UPLOAD_MODEL, status=True, msg=None,
                                                     meta_result=None, data_result=self.serialize_response(train_res)
                                                     ))

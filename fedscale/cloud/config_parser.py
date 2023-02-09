@@ -28,6 +28,8 @@ parser.add_argument('--task', type=str, default='cv')
 parser.add_argument('--device_avail_file', type=str, default=None)
 parser.add_argument('--clock_factor', type=float, default=1.0,
                     help="Refactor the clock time given the profile")
+parser.add_argument('--local_client_num', type=int, default=1,
+                    help="")
 
 # The configuration of model and dataset
 parser.add_argument('--model_zoo', type=str, default='torchcv',
